@@ -1,0 +1,15 @@
+{
+  "name": "seamscope",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-first visual seam-carving lab for content-aware image reduction.",
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check src/seam-core.js && node --check src/app.js && node --check tools/serve.mjs",
+    "start": "node tools/serve.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

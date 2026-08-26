@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Inspect and guide seam carving entirely in your browser.">
+    <title>SeamScope — Content-aware resizing, made visible</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="SeamScope home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span>SeamScope</span>
+      </a>
+      <p class="privacy-pill"><span aria-hidden="true">●</span> Local processing only</p>
+      <a class="text-link" href="#how-it-works">How it works <span aria-hidden="true">↘</span></a>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div>
+          <p class="eyebrow">A visual lab for seam carving</p>
+          <h1 id="hero-title">Resize the canvas.<br><em>Keep the story.</em></h1>
+        </div>
+        <div class="hero-copy">
+          <p>See exactly which path the algorithm will remove. Protect the details that matter, target distractions, and learn the dynamic programming behind every seam.</p>
+          <div class="hero-actions">
+            <label class="button button-primary" for="file-input">Choose an image</label>
+            <input id="file-input" type="file" accept="image/*" hidden>
+            <button id="demo-button" class="button button-quiet" type="button">Regenerate demo</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="workspace" aria-label="Seam carving workspace">
+        <aside class="control-panel">
+          <div class="panel-heading">
+            <span class="step-number">01</span>
+            <div><p class="kicker">Direction</p><h2>Choose the cut</h2></div>
+          </div>
+          <fieldset class="segmented-control">
+            <legend class="sr-only">Seam direction</legend>
+            <label><input type="radio" name="axis" value="vertical" checked><span>Width <small>vertical seam</small></span></label>
+            <label><input type="radio" name="axis" value="horizontal"><span>Height <small>horizontal seam</small></span></label>
+          </fieldset>
+
+          <div class="field-grid">
+            <label>Target width <span><input id="target-width" type="number" min="2" inputmode="numeric"> px</span></label>
+            <label>Target height <span><input id="target-height" type="number" min="2" inputmode="numeric"> px</span></label>
+          </div>
+
+          <div class="panel-heading compact">
+            <span class="step-number">02</span>
+            <div><p class="kicker">Guidance mask</p><h2>Teach the energy map</h2></div>
+          </div>
+          <fieldset class="brush-options">
+            <legend class="sr-only">Brush mode</legend>
+            <label class="protect"><input type="radio" name="brush" value="protect" checked><span><b></b>Protect</span></label>
+            <label class="remove"><input type="radio" name="brush" value="remove"><span><b></b>Remove first</span></label>
+            <label class="erase"><input type="radio" name="brush" value="erase"><span><b></b>Erase mask</span></label>
+          </fieldset>
+          <label class="range-field">Brush size <output id="brush-output">24 px</output><input id="brush-size" type="range" min="4" max="80" value="24"></label>
+          <p class="hint">Paint directly on the image. Green pixels become expensive; coral pixels become attractive to seams.</p>
+
+          <div class="action-stack">
+            <button id="preview-button" class="button button-dark" type="button">Preview next seam <span aria-hidden="true">→</span></button>
+            <button id="remove-button" class="button button-outline" type="button">Remove one seam</button>
+            <button id="run-button" class="button button-accent" type="button">Run to target</button>
+          </div>
+          <div class="utility-row">
+            <button id="undo-button" type="button">↶ Undo</button>
+            <button id="reset-button" type="button">Reset</button>
+            <button id="export-button" type="button">Export PNG ↗</button>
+          </div>
+        </aside>
+
+        <div class="visual-stage">
+          <div class="stage-header">
+            <div><p class="kicker">Working image</p><h2 id="image-name">Generated landscape</h2></div>
+            <div class="legend" aria-label="Overlay legend"><span><i class="green"></i>protect</span><span><i class="coral"></i>remove</span><span><i class="white"></i>next seam</span></div>
+          </div>
+          <div class="canvas-shell">
+            <canvas id="image-canvas" aria-label="Editable source image. Drag to paint the selected guidance mask."></canvas>
+            <span class="corner corner-a" aria-hidden="true"></span><span class="corner corner-b" aria-hidden="true"></span>
+          </div>
+          <dl class="metrics">
+            <div><dt>Dimensions</dt><dd id="dimensions">—</dd></div>
+            <div><dt>Seams removed</dt><dd id="removed-count">0</dd></div>
+            <div><dt>Last path cost</dt><dd id="path-cost">—</dd></div>
+            <div><dt>Compute time</dt><dd id="compute-time">—</dd></div>
+          </dl>
+          <p id="status" class="status" role="status" aria-live="polite">Demo ready. Preview a seam or paint a mask.</p>
+        </div>
+      </section>
+
+      <section class="energy-section" aria-labelledby="energy-title">
+        <div class="section-intro">
+          <p class="eyebrow">Under the surface</p>
+          <h2 id="energy-title">The image as <em>energy.</em></h2>
+          <p>Bright pixels are expensive to cut. The white path is the connected route with the lowest cumulative cost from one edge to the other.</p>
+        </div>
+        <div class="energy-card">
+          <div class="energy-heading"><span>live Sobel field</span><span id="energy-scale">low 〰 high</span></div>
+          <canvas id="energy-canvas" aria-label="Grayscale Sobel energy map"></canvas>
+        </div>
+      </section>
+
+      <section id="how-it-works" class="method-section" aria-labelledby="method-title">
+        <div><p class="eyebrow">The method</p><h2 id="method-title">One intelligent<br>pixel path at a time.</h2></div>
+        <ol>
+          <li><span>01</span><div><h3>Measure contrast</h3><p>A Sobel operator scores local luminance change while strong boundary energy protects the outer frame.</p></div></li>
+          <li><span>02</span><div><h3>Accumulate cost</h3><p>Dynamic programming finds the cheapest connected path across the entire image, including your brush bias.</p></div></li>
+          <li><span>03</span><div><h3>Remove and repeat</h3><p>Pixels shift by one position, the energy field is recomputed, and the next seam adapts to the new image.</p></div></li>
+        </ol>
+      </section>
+    </main>
+
+    <footer><span>SeamScope / 2026</span><span>Browser-native · auditable · private</span></footer>
+    <script type="module" src="src/app.js"></script>
+  </body>
+</html>
