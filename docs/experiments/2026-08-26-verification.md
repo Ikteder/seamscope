@@ -15,6 +15,7 @@
 |---|---|
 | `npm test` | 8 passed, 0 failed |
 | `npm run check` | All three JavaScript modules passed syntax checks |
+| GitHub Actions CI | Completed successfully on Node.js 20 and 22; run `33002237764` |
 
 The tests cover border energy, minimum connected path selection, vertical pixel order, transposition, horizontal removal, brush extent, protection bias, and target validation.
 

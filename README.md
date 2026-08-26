@@ -41,6 +41,7 @@ Verified on 2026-08-26 with Node.js 26.5.0 on Windows:
 
 - 8/8 algorithm tests passed.
 - All JavaScript modules passed `node --check`.
+- GitHub Actions CI passed on Node.js 20 and 22.
 - Browser smoke tests passed for startup, preview, vertical removal, horizontal removal, undo, mask painting, mixed-axis target carving, and responsive layout.
 - The generated demo preview completed in 16.4 ms in the observed browser run. This is a single local observation, not a cross-device benchmark.
 
