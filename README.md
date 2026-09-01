@@ -47,6 +47,7 @@ Verified locally on 2026-09-01 with Node.js 26.5.0 on Windows:
 - The benchmark completed all 76 requested seam removals at the expected dimensions.
 - Across three generated structured fixtures, the weighted mean adjacency-disruption proxy was `4.0717` for backward energy and `2.6508` for forward energy, a ratio of `0.6510`.
 - Browser verification covered switching methods, preview invalidation, both-axis removal, target carving, and narrow layout.
+- [GitHub Actions run 33548536555](https://github.com/Ikteder/seamscope/actions/runs/33548536555) passed tests, syntax checks, and the benchmark on Node.js 20 and 22.
 
 The proxy measures only the mean absolute luminance difference between pixels newly joined by removal. Lower is less local disruption on these fixtures, not proof of better perceived output. See [the 2026-09-01 verification record](docs/experiments/2026-09-01-forward-energy.md) for exact results and limitations.
 

@@ -16,6 +16,7 @@
 | `npm test` | 12 passed, 0 failed |
 | `npm run check` | Core, app, server, and benchmark modules passed syntax checks |
 | `npm run benchmark` | Three fixtures and 76 total seam removals completed at expected dimensions |
+| GitHub Actions run `33548536555` | Passed the full matrix on Node.js 20 and 22 |
 
 The added tests cover deterministic forward path selection, guidance influence, horizontal support, unknown-method rejection, and introduced-adjacency accounting. The eight original behavior groups remain covered.
 
@@ -51,7 +52,7 @@ Forward energy produced lower adjacency disruption on all three structured fixtu
 
 ## Publication verification
 
-Public GitHub Actions status will be recorded after the commit is pushed.
+Commit `687db7e49e983dc82fc2269f0b3ffdf1a0fa9473` was pushed to public repository https://github.com/Ikteder/seamscope. Local and remote `main` matched, and GitHub Actions run `33548536555` completed successfully.
 
 ## Limitations
 
