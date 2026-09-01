@@ -45,6 +45,14 @@
             <label><input type="radio" name="axis" value="horizontal"><span>Height <small>horizontal seam</small></span></label>
           </fieldset>
 
+          <p class="control-label">Energy method</p>
+          <fieldset class="segmented-control method-control">
+            <legend class="sr-only">Energy method</legend>
+            <label><input type="radio" name="method" value="backward" checked><span>Backward <small>current contrast</small></span></label>
+            <label><input type="radio" name="method" value="forward"><span>Forward <small>new adjacency</small></span></label>
+          </fieldset>
+          <p class="hint">Backward energy avoids existing edges. Forward energy estimates the luminance disruption created by joining pixels across a removed seam.</p>
+
           <div class="field-grid">
             <label>Target width <span><input id="target-width" type="number" min="2" inputmode="numeric"> px</span></label>
             <label>Target height <span><input id="target-height" type="number" min="2" inputmode="numeric"> px</span></label>
@@ -87,7 +95,7 @@
           <dl class="metrics">
             <div><dt>Dimensions</dt><dd id="dimensions">—</dd></div>
             <div><dt>Seams removed</dt><dd id="removed-count">0</dd></div>
-            <div><dt>Last path cost</dt><dd id="path-cost">—</dd></div>
+            <div><dt>Selected path cost</dt><dd id="path-cost">—</dd></div>
             <div><dt>Compute time</dt><dd id="compute-time">—</dd></div>
           </dl>
           <p id="status" class="status" role="status" aria-live="polite">Demo ready. Preview a seam or paint a mask.</p>
@@ -98,7 +106,7 @@
         <div class="section-intro">
           <p class="eyebrow">Under the surface</p>
           <h2 id="energy-title">The image as <em>energy.</em></h2>
-          <p>Bright pixels are expensive to cut. The white path is the connected route with the lowest cumulative cost from one edge to the other.</p>
+          <p>The grayscale field always shows current Sobel contrast. The white path follows the selected method: backward energy avoids current edges, while forward energy also prices newly adjacent pixels.</p>
         </div>
         <div class="energy-card">
           <div class="energy-heading"><span>live Sobel field</span><span id="energy-scale">low 〰 high</span></div>
@@ -110,7 +118,7 @@
         <div><p class="eyebrow">The method</p><h2 id="method-title">One intelligent<br>pixel path at a time.</h2></div>
         <ol>
           <li><span>01</span><div><h3>Measure contrast</h3><p>A Sobel operator scores local luminance change while strong boundary energy protects the outer frame.</p></div></li>
-          <li><span>02</span><div><h3>Accumulate cost</h3><p>Dynamic programming finds the cheapest connected path across the entire image, including your brush bias.</p></div></li>
+          <li><span>02</span><div><h3>Choose the evidence</h3><p>Backward energy prices current contrast. Forward energy estimates disruption from the neighbors that each removal would join.</p></div></li>
           <li><span>03</span><div><h3>Remove and repeat</h3><p>Pixels shift by one position, the energy field is recomputed, and the next seam adapts to the new image.</p></div></li>
         </ol>
       </section>

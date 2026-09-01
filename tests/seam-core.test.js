@@ -2,7 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   computeEnergy,
+  findSeam,
+  findVerticalForwardSeam,
   findVerticalSeam,
+  introducedAdjacencyCost,
   paintBias,
   removeSeam,
   removeVerticalSeam,
@@ -34,6 +37,19 @@ test("vertical seam follows the minimum connected path", () => {
   const result = findVerticalSeam(energy, 3, 3);
   assert.deepEqual([...result.seam], [1, 0, 0]);
   assert.equal(result.totalEnergy, 3);
+});
+
+test("forward energy chooses the deterministic minimum-disruption path", () => {
+  const image = imageFromValues([
+    [0, 0, 0, 255, 255],
+    [0, 0, 255, 255, 255],
+    [0, 0, 0, 255, 255],
+    [0, 0, 255, 255, 255],
+    [0, 0, 0, 255, 255],
+  ]);
+  const result = findVerticalForwardSeam(image, new Float64Array(25));
+  assert.deepEqual([...result.seam], [2, 3, 2, 3, 4]);
+  assert.equal(result.totalEnergy, 2_000_255);
 });
 
 test("vertical seam removal preserves remaining pixel order", () => {
@@ -73,6 +89,30 @@ test("large protection bias steers the seam away", () => {
   const energy = computeEnergy(image, bias);
   const seam = findVerticalSeam(energy, 5, 5).seam;
   assert.ok([...seam].every((x) => x !== 1));
+});
+
+test("forward energy honors guidance and supports horizontal seams", () => {
+  const image = imageFromValues(Array.from({ length: 5 }, () => [50, 50, 50, 50, 50]));
+  const bias = new Float64Array(25);
+  for (let y = 0; y < 5; y += 1) bias[y * 5 + 1] = 2_000_000;
+  const vertical = findSeam(image, bias, "vertical", "forward").seam;
+  const horizontal = findSeam(image, new Float64Array(25), "horizontal", "forward").seam;
+  assert.ok([...vertical].every((x) => x !== 1));
+  assert.equal(horizontal.length, image.width);
+  assert.ok([...horizontal].every((y) => y >= 0 && y < image.height));
+});
+
+test("adjacency disruption reports the luminance introduced by a removal", () => {
+  const image = imageFromValues([[0, 10, 40], [5, 15, 45]]);
+  const result = introducedAdjacencyCost(image, new Int32Array([1, 1]));
+  assert.equal(result.joinedPixels, 2);
+  assert.equal(result.total, 80);
+  assert.equal(result.mean, 40);
+});
+
+test("method selection rejects unknown algorithms", () => {
+  const image = imageFromValues([[1, 2], [3, 4]]);
+  assert.throws(() => findSeam(image, new Float64Array(4), "vertical", "mystery"), /backward or forward/);
 });
 
 test("targets reject enlargement and one-pixel results", () => {

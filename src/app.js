@@ -48,6 +48,10 @@ function selectedAxis() {
   return document.querySelector('input[name="axis"]:checked').value;
 }
 
+function selectedMethod() {
+  return document.querySelector('input[name="method"]:checked').value;
+}
+
 function selectedBrush() {
   return document.querySelector('input[name="brush"]:checked').value;
 }
@@ -139,6 +143,9 @@ function render() {
   elements.removeButton.disabled = state.running;
   elements.resetButton.disabled = state.running;
   elements.exportButton.disabled = state.running;
+  document.querySelectorAll('input[name="axis"], input[name="method"]').forEach((input) => {
+    input.disabled = state.running;
+  });
   updateTargetBounds();
 }
 
@@ -219,18 +226,19 @@ function renderEnergyMap() {
 
 function previewNext() {
   const axis = selectedAxis();
+  const method = selectedMethod();
   if ((axis === "vertical" && state.image.width <= 2) || (axis === "horizontal" && state.image.height <= 2)) {
     setStatus("That dimension is already at the safe minimum of 2 pixels.");
     return null;
   }
   const started = performance.now();
-  const result = findSeam(state.image, state.bias, axis);
+  const result = findSeam(state.image, state.bias, axis, method);
   const elapsed = performance.now() - started;
-  state.preview = { seam: result.seam, axis, totalEnergy: result.totalEnergy };
+  state.preview = { seam: result.seam, axis, method, totalEnergy: result.totalEnergy };
   elements.pathCost.textContent = formatCost(result.totalEnergy);
   elements.computeTime.textContent = `${elapsed.toFixed(1)} ms`;
   render();
-  setStatus(`${axis === "vertical" ? "Vertical" : "Horizontal"} seam previewed. No pixels changed.`);
+  setStatus(`${method === "forward" ? "Forward" : "Backward"} ${axis} seam previewed. No pixels changed.`);
   return state.preview;
 }
 
@@ -251,13 +259,14 @@ function pushHistory() {
 
 function removeOne({ recordHistory = true, quiet = false } = {}) {
   const axis = selectedAxis();
+  const method = selectedMethod();
   const limitReached = axis === "vertical" ? state.image.width <= 2 : state.image.height <= 2;
   if (limitReached) {
     if (!quiet) setStatus("That dimension is already at the safe minimum of 2 pixels.");
     return false;
   }
   if (recordHistory) pushHistory();
-  const preview = state.preview?.axis === axis ? state.preview : previewNext();
+  const preview = state.preview?.axis === axis && state.preview?.method === method ? state.preview : previewNext();
   if (!preview) return false;
   const result = removeSeam(state.image, state.bias, preview.seam, axis);
   state.image = result.image;
@@ -266,7 +275,7 @@ function removeOne({ recordHistory = true, quiet = false } = {}) {
   state.removed += 1;
   if (!quiet) {
     render();
-    setStatus(`Removed one ${axis} seam. Undo remains available.`);
+    setStatus(`Removed one ${method} ${axis} seam. Undo remains available.`);
   }
   return true;
 }
@@ -278,6 +287,7 @@ async function runToTarget() {
   }
   const targetWidth = Number.parseInt(elements.targetWidth.value, 10);
   const targetHeight = Number.parseInt(elements.targetHeight.value, 10);
+  const method = selectedMethod();
   try {
     validateTarget(state.image, targetWidth, targetHeight);
   } catch (error) {
@@ -302,8 +312,8 @@ async function runToTarget() {
     const heightRemaining = state.image.height - targetHeight;
     const axis = widthRemaining / state.image.width >= heightRemaining / state.image.height ? "vertical" : "horizontal";
     document.querySelector(`input[name="axis"][value="${axis}"]`).checked = true;
-    const result = findSeam(state.image, state.bias, axis);
-    state.preview = { seam: result.seam, axis, totalEnergy: result.totalEnergy };
+    const result = findSeam(state.image, state.bias, axis, method);
+    state.preview = { seam: result.seam, axis, method, totalEnergy: result.totalEnergy };
     const carved = removeSeam(state.image, state.bias, result.seam, axis);
     state.image = carved.image;
     state.bias = carved.bias;
@@ -322,7 +332,8 @@ async function runToTarget() {
   elements.runButton.textContent = "Run to target";
   elements.computeTime.textContent = `${elapsed.toFixed(1)} ms total`;
   render();
-  setStatus(state.cancelRequested ? `Stopped after ${removedThisRun} seams.` : `Target reached after ${removedThisRun} seams.`);
+  const methodLabel = method === "forward" ? "Forward energy" : "Backward energy";
+  setStatus(state.cancelRequested ? `Stopped after ${removedThisRun} seams.` : `${methodLabel} target reached after ${removedThisRun} seams.`);
 }
 
 function undo() {
@@ -418,6 +429,13 @@ document.querySelectorAll('input[name="axis"]').forEach((input) => input.addEven
   state.preview = null;
   render();
   setStatus(`${selectedAxis() === "vertical" ? "Width" : "Height"} reduction selected.`);
+}));
+document.querySelectorAll('input[name="method"]').forEach((input) => input.addEventListener("change", () => {
+  state.preview = null;
+  elements.pathCost.textContent = "—";
+  elements.computeTime.textContent = "—";
+  render();
+  setStatus(`${selectedMethod() === "forward" ? "Forward" : "Backward"} energy selected. Preview the next seam before removing it.`);
 }));
 elements.imageCanvas.addEventListener("pointerdown", (event) => {
   if (state.running) return;

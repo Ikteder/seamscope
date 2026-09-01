@@ -17,18 +17,29 @@ export function cloneImage(image) {
   return { width: image.width, height: image.height, data: new Uint8ClampedArray(image.data) };
 }
 
-export function computeEnergy(image, bias = null) {
+function computeLuminance(image) {
   assertImage(image);
-  const { width, height, data } = image;
+  const luminance = new Float64Array(image.width * image.height);
+  for (let index = 0; index < luminance.length; index += 1) {
+    const offset = index * 4;
+    luminance[index] = 0.2126 * image.data[offset]
+      + 0.7152 * image.data[offset + 1]
+      + 0.0722 * image.data[offset + 2];
+  }
+  return luminance;
+}
+
+function assertBias(bias, width, height) {
   if (bias !== null && (!(bias instanceof Float64Array) || bias.length !== width * height)) {
     throw new TypeError("bias must be a width × height Float64Array");
   }
+}
 
-  const luminance = new Float64Array(width * height);
-  for (let index = 0; index < width * height; index += 1) {
-    const offset = index * 4;
-    luminance[index] = 0.2126 * data[offset] + 0.7152 * data[offset + 1] + 0.0722 * data[offset + 2];
-  }
+export function computeEnergy(image, bias = null) {
+  assertImage(image);
+  const { width, height } = image;
+  assertBias(bias, width, height);
+  const luminance = computeLuminance(image);
 
   const energy = new Float64Array(width * height);
   const sample = (x, y) => luminance[y * width + x];
@@ -106,6 +117,79 @@ export function findVerticalSeam(energy, width, height) {
   return { seam, totalEnergy };
 }
 
+export function findVerticalForwardSeam(image, bias = null) {
+  assertImage(image);
+  const { width, height } = image;
+  assertBias(bias, width, height);
+  const luminance = computeLuminance(image);
+  const costs = new Float64Array(width * height);
+  const localCosts = new Float64Array(width * height);
+  const parents = new Int32Array(width * height);
+  parents.fill(-1);
+  const sample = (x, y) => luminance[y * width + Math.max(0, Math.min(width - 1, x))];
+  const localBase = (x, y) => {
+    const boundary = x === 0 || y === 0 || x === width - 1 || y === height - 1;
+    return (boundary ? EDGE_ENERGY : 0) + (bias?.[y * width + x] ?? 0);
+  };
+
+  for (let x = 0; x < width; x += 1) {
+    const base = localBase(x, 0);
+    costs[x] = base;
+    localCosts[x] = base;
+  }
+
+  for (let y = 1; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const disruptionUp = Math.abs(sample(x + 1, y) - sample(x - 1, y));
+      const disruptionLeft = disruptionUp + Math.abs(sample(x, y - 1) - sample(x - 1, y));
+      const disruptionRight = disruptionUp + Math.abs(sample(x, y - 1) - sample(x + 1, y));
+
+      let bestX = x;
+      let bestCost = costs[(y - 1) * width + x] + disruptionUp;
+      let localTransition = disruptionUp;
+      if (x > 0) {
+        const candidate = costs[(y - 1) * width + x - 1] + disruptionLeft;
+        if (candidate <= bestCost) {
+          bestCost = candidate;
+          bestX = x - 1;
+          localTransition = disruptionLeft;
+        }
+      }
+      if (x + 1 < width) {
+        const candidate = costs[(y - 1) * width + x + 1] + disruptionRight;
+        if (candidate < bestCost) {
+          bestCost = candidate;
+          bestX = x + 1;
+          localTransition = disruptionRight;
+        }
+      }
+
+      const index = y * width + x;
+      const base = localBase(x, y);
+      costs[index] = base + bestCost;
+      localCosts[index] = base + localTransition;
+      parents[index] = bestX;
+    }
+  }
+
+  let endX = 0;
+  let totalEnergy = costs[(height - 1) * width];
+  for (let x = 1; x < width; x += 1) {
+    const candidate = costs[(height - 1) * width + x];
+    if (candidate < totalEnergy) {
+      totalEnergy = candidate;
+      endX = x;
+    }
+  }
+
+  const seam = new Int32Array(height);
+  seam[height - 1] = endX;
+  for (let y = height - 1; y > 0; y -= 1) {
+    seam[y - 1] = parents[y * width + seam[y]];
+  }
+  return { seam, totalEnergy, energy: localCosts };
+}
+
 export function removeVerticalSeam(image, seam) {
   assertImage(image);
   const { width, height, data } = image;
@@ -168,16 +252,40 @@ export function transposeBias(bias, width, height) {
   return output;
 }
 
-export function findSeam(image, bias, axis = "vertical") {
+export function findSeam(image, bias, axis = "vertical", method = "backward") {
+  if (method !== "backward" && method !== "forward") {
+    throw new RangeError("method must be backward or forward");
+  }
   if (axis === "vertical") {
+    if (method === "forward") return findVerticalForwardSeam(image, bias);
     const energy = computeEnergy(image, bias);
     return { ...findVerticalSeam(energy, image.width, image.height), energy };
   }
   if (axis !== "horizontal") throw new RangeError("axis must be vertical or horizontal");
   const transposedImage = transposeImage(image);
   const transposedBias = transposeBias(bias, image.width, image.height);
+  if (method === "forward") return findVerticalForwardSeam(transposedImage, transposedBias);
   const energy = computeEnergy(transposedImage, transposedBias);
   return { ...findVerticalSeam(energy, transposedImage.width, transposedImage.height), energy };
+}
+
+export function introducedAdjacencyCost(image, seam, axis = "vertical") {
+  assertImage(image);
+  if (axis === "horizontal") {
+    return introducedAdjacencyCost(transposeImage(image), seam, "vertical");
+  }
+  if (axis !== "vertical") throw new RangeError("axis must be vertical or horizontal");
+  validateSeam(seam, image.width, image.height);
+  const luminance = computeLuminance(image);
+  let total = 0;
+  let joinedPixels = 0;
+  for (let y = 0; y < image.height; y += 1) {
+    const x = seam[y];
+    if (x === 0 || x === image.width - 1) continue;
+    total += Math.abs(luminance[y * image.width + x - 1] - luminance[y * image.width + x + 1]);
+    joinedPixels += 1;
+  }
+  return { total, mean: joinedPixels === 0 ? 0 : total / joinedPixels, joinedPixels };
 }
 
 export function removeSeam(image, bias, seam, axis = "vertical") {
